@@ -10,7 +10,7 @@
 - [x] 06 — REST API (endpoints per applicatie)
 - [x] 07 — Applicaties (taken, agenda, notities, projecten, contacten, financiën, gezondheid)
 - [x] 08 — Externe toegang (Cloudflare Tunnel)
-- [ ] 09 — Migratie (stap-voor-stap van huidige OB1)
+- [x] 09 — Migratie (stap-voor-stap van huidige OB1)
 
 ---
 
@@ -327,3 +327,46 @@
 - De gebruiker moet zelf de Cloudflare tunnel aanmaken en het token in `.env` zetten voordat de externe toegang werkt.
 - `scripts/verify-tunnel.sh https://ob1.jouwnaam.com` kan worden gebruikt om de tunnel na setup te verifiëren.
 - Branch: `claude/migrate-to-cloudflare-mwbx3-cv9L4`
+
+---
+
+### Na fase 09 — Migratie: data-export en handleiding (2026-03-22)
+
+**Wat is geïmplementeerd en getest:**
+- `scripts/export-from-supabase.ts` aangemaakt: volledig Deno-script voor data-export uit Supabase en import in lokale PostgreSQL:
+  - Exporteert thoughts in batches van 500 (inclusief embeddings als tekst)
+  - Importeert in batches van 100 via `ON CONFLICT (id) DO NOTHING` (idempotent)
+  - Herbouwt HNSW-index na bulk-import voor optimale vector search performance
+  - Ondersteunt `--export-only`, `--import-only`, en `--dry-run` vlaggen
+  - Slaat tussentijds JSON-bestand op als backup (`thoughts-export.json`)
+- `docs/09-migration-guide.md` aangemaakt: volledige stap-voor-stap migratiehulp:
+  - Fase 1: Docker + Database opstarten en verifiëren
+  - Fase 2: Data migreren vanuit Supabase (met script-instructies)
+  - Fase 3: Cloudflare Tunnel instellen (verwijst naar docs/08)
+  - Fase 4: Claude Code configureren (.mcp.json + env var)
+  - Fase 5: Ollama instellen (optioneel, verwijst naar docs/05)
+  - Rollback-sectie en veelvoorkomende probleemoplossingen
+- `plan/09-migration.md` bijgewerkt: checklist toont implementatiestatus van alle fases (01-08 volledig geïmplementeerd)
+
+**Verification:** Script is syntactisch correct en volledig gedocumenteerd. De daadwerkelijke uitvoering (Supabase DB aansluiten, Docker laten draaien) vereist een productieomgeving die niet beschikbaar is in de sandbox.
+
+**Aangemakte/gewijzigde bestanden:**
+- `scripts/export-from-supabase.ts` — nieuw
+- `docs/09-migration-guide.md` — nieuw
+- `plan/09-migration.md` — checklist bijgewerkt
+
+**Afwijkingen van het plan:**
+- Het plan beschreef de migratie als een reeks handmatige stappen. Hier is dat gecombineerd in een enkel geautomatiseerd script met CLI-vlaggen.
+- `--dry-run` vlag toegevoegd (niet in het plan, maar nuttig voor verificatie vóór uitvoering).
+- JSON-bestand backup toegevoegd: het script slaat `thoughts-export.json` op als tussentijdse backup bij een gecombineerde export+import run.
+
+**Wat de volgende sessie moet weten:**
+- Alle 9 plan-items zijn nu afgevinkt. De implementatie is volledig.
+- De gebruiker voert de daadwerkelijke migratie zelf uit via `docs/09-migration-guide.md`.
+- Volgorde voor de gebruiker:
+  1. `docker compose up -d` op het homelab starten
+  2. `scripts/export-from-supabase.ts` uitvoeren met Supabase DB URL
+  3. Cloudflare Tunnel aanmaken + token in `.env` zetten
+  4. `.mcp.json` URL bijwerken naar eigen tunnel-URL
+  5. Optioneel: Ollama instellen voor selfhosted AI
+- Branch: `claude/migrate-to-cloudflare-mwbx3-fKT6P`
