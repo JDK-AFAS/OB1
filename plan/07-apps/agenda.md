@@ -45,8 +45,7 @@ Claude: Herhalend event aangemaakt: Sportschool — elke do 19:30 (oneindig)
 - Herinneringen (push notificaties)
 - Gedeelde agenda met anderen
 
-## Open vragen
-- Tijdzone: bewaar je altijd in UTC (aanbevolen) of in lokale tijd?
-  → **Aanbeveling: UTC opslaan, weergeven in lokale tijdzone (Europe/Amsterdam)**
-- Hoe om te gaan met occurrences van herhalende events?
-  → **Genereer on-the-fly bij opvragen, sla geen individuele occurrences op**
+## Beslissingen
+
+- **Tijdzone: niet relevant.** Altijd Nederland (CET/CEST). Timestamps worden opgeslagen als `TIMESTAMP` (zonder tijdzone), behandeld als lokale tijd. Geen conversie nodig, geen complexity.
+- **Herhalende events:** Occurrences worden on-the-fly berekend bij opvragen. Geen individuele occurrences opslaan in de database.

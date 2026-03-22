@@ -7,6 +7,7 @@
 - Embedding-dimensie: **1536** (OpenRouter `text-embedding-3-small`) nu, later migratie naar 768 bij Ollama switch (zie plan 04)
 - Geen user_id kolommen (single-user, later uitbreidbaar)
 - Alle tabellen krijgen `created_at` en `updated_at`
+- **Tijdzones:** Altijd Nederland, nooit reizen → geen tijdzoneconversie nodig. De SQL gebruikt `TIMESTAMPTZ` (PostgreSQL standaard, slaat intern UTC op), maar dit wordt nergens omgezet — alles wordt behandeld als lokale tijd. In de praktijk nul verschil met `TIMESTAMP`.
 
 ---
 
