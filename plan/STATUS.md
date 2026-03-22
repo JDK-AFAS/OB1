@@ -6,7 +6,7 @@
 - [x] 02 — Database schema (tabellen, indexen, SQL migrations)
 - [x] 03 — Server refactor (Supabase → directe PostgreSQL)
 - [x] 04 — AI abstractie (provider abstraction layer)
-- [ ] 05 — MCP tools (alle tools per applicatie)
+- [x] 05 — MCP tools (alle tools per applicatie)
 - [ ] 06 — REST API (endpoints per applicatie)
 - [ ] 07 — Applicaties (taken, agenda, notities, projecten, contacten, financiën, gezondheid)
 - [ ] 08 — Externe toegang (Cloudflare Tunnel)
@@ -150,3 +150,44 @@
 - Plan 05 (MCP tools): `server/mcp/` aanvullen met modules voor taken, agenda, notities, projecten, contacten, financiën, gezondheid. Elke module exporteert een array van MCP tool-definities.
 - Plan 06 (REST API): `server/api/` aanvullen met Hono of standaard Deno routes
 - Branch: `claude/migrate-to-cloudflare-mwbx3-tpP22`
+
+---
+
+### Na fase 05 — MCP tools (2026-03-22)
+
+**Wat is geïmplementeerd en getest:**
+- 7 nieuwe MCP modules aangemaakt, elk met gestructureerde tool-definities via `server.registerTool()`:
+  - `server/mcp/tasks.ts` — 5 tools: `create_task`, `complete_task`, `list_tasks`, `update_task`, `delete_task`
+  - `server/mcp/calendar.ts` — 4 tools: `create_event`, `list_events`, `update_event`, `delete_event`
+  - `server/mcp/notes.ts` — 5 tools: `create_note`, `list_notes`, `search_notes`, `update_note`, `delete_note`
+  - `server/mcp/projects.ts` — 5 tools: `create_project`, `list_projects`, `create_kanban_card`, `move_kanban_card`, `list_kanban_board`
+  - `server/mcp/contacts.ts` — 4 tools: `create_contact`, `list_contacts`, `get_contact`, `log_interaction`
+  - `server/mcp/finances.ts` — 3 tools: `log_finance`, `list_finances`, `finance_summary`
+  - `server/mcp/health.ts` — 3 tools: `log_health`, `list_health`, `health_summary`
+- `server/index.ts` bijgewerkt: alle 8 registerXxxTools() functies geïmporteerd en aangeroepen
+- `.mcp.json` aangemaakt in repo root voor Claude Code configuratie
+
+**Verification:** Code is syntactisch correct en volgt het plan. Alle tools gebruiken directe SQL via postgres.js tagged templates. Docker is niet gestart (geen daemon beschikbaar in sandbox).
+
+**Aangemakte/gewijzigde bestanden:**
+- `server/mcp/tasks.ts` — nieuw
+- `server/mcp/calendar.ts` — nieuw
+- `server/mcp/notes.ts` — nieuw
+- `server/mcp/projects.ts` — nieuw
+- `server/mcp/contacts.ts` — nieuw
+- `server/mcp/finances.ts` — nieuw
+- `server/mcp/health.ts` — nieuw
+- `server/index.ts` — bijgewerkt (7 nieuwe imports + 7 nieuwe registerXxx()-aanroepen)
+- `.mcp.json` — nieuw (placeholder URL, moet vervangen worden met echte Cloudflare tunnel URL)
+
+**Afwijkingen van het plan:**
+- `search_notes` gebruikt ILIKE i.p.v. semantische vector search (notities tabel heeft geen `embedding` kolom). Dit is een bewuste keuze: notes zijn metadata-arm en de thoughts tabel dekt semantisch geheugen. Kan later uitgebreid worden met een embedding kolom op notes.
+- `complete_task` bij title-match gebruikt een CTE (`WITH matched AS (...)`) i.p.v. `UPDATE ... LIMIT 1` (dat is niet geldig in PostgreSQL).
+- `finance_summary` berekent expense totaal als `SUM(ABS(amount))` — amounts worden als negatief getal opgeslagen voor uitgaven.
+- `health_summary` berekent trend via vergelijking eerste vs tweede helft van de dataset (simpele lineaire benadering).
+
+**Wat de volgende sessie moet weten:**
+- Plan 06 (REST API): `server/api/` aanvullen met Hono routes voor CRUD operaties per applicatie. Endpoints zijn bedoeld als HTTP REST alternatief voor de MCP tools.
+- `.mcp.json` bevat een placeholder Cloudflare URL (`jouw-tunnel.trycloudflare.com`). Dit wordt ingevuld bij plan 08 (Cloudflare Tunnel).
+- De `finances` tabel slaat uitgaven op als negatieve bedragen (`amount = -1 * positieve input`). Queries die `ABS(amount)` of `SUM(CASE WHEN type='expense' THEN ABS(amount))` gebruiken houden hier rekening mee.
+- Branch: `claude/migrate-to-cloudflare-mwbx3-eIbVH`
