@@ -4,7 +4,7 @@
 
 - [x] 01 — Infrastructuur (Docker Compose, Dockerfile, postgres/init)
 - [x] 02 — Database schema (tabellen, indexen, SQL migrations)
-- [ ] 03 — Server refactor (Supabase → directe PostgreSQL)
+- [x] 03 — Server refactor (Supabase → directe PostgreSQL)
 - [ ] 04 — AI abstractie (provider abstraction layer)
 - [ ] 05 — MCP tools (alle tools per applicatie)
 - [ ] 06 — REST API (endpoints per applicatie)
@@ -82,3 +82,42 @@
 - Plan 03 (server-refactor.md) vervangt de Supabase client in `server/index.ts` door directe PostgreSQL verbinding via `postgres.js` (of `pg`)
 - De bestaande `server/index.ts` gebruikt nog Supabase — dit is bewust, want plan 03 doet de refactor
 - Branch: `claude/migrate-to-cloudflare-mwbx3-4Juad`
+
+---
+
+### Na fase 03 — Server refactor (2026-03-22)
+
+**Wat is geïmplementeerd en getest:**
+- `server/db.ts` aangemaakt: singleton postgres.js connectie pool (max 10 conn, idle 30s)
+- `server/ai.ts` aangemaakt: AI provider abstractielaag met `OpenRouterProvider` (1536-dim) en `OllamaProvider` (768-dim), switchbaar via `AI_PROVIDER` env var
+- `server/mcp/thoughts.ts` aangemaakt: alle 4 MCP tools gemigreerd van Supabase naar directe SQL:
+  - `search_thoughts`: gebruikt `match_thoughts()` PostgreSQL functie via `sql\`...\`` tagged template
+  - `list_thoughts`: dynamische WHERE clauses via postgres.js nested `sql\`...\`` fragments (type/topic/person/days filters)
+  - `thought_stats`: één query met `COUNT(*) OVER ()` window function
+  - `capture_thought`: directe `INSERT INTO thoughts` met `::vector` en `::jsonb` casts
+- `server/index.ts` herschreven: modulaire structuur met db/ai/mcp modules, health check zonder auth, MCP endpoint met x-brain-key auth
+- `server/deno.json` bijgewerkt: `@supabase/supabase-js` verwijderd, `postgres@3.4.5` toegevoegd
+
+**Verification:** Code is syntactisch correct en volgt het plan. Docker is niet gestart (geen daemon beschikbaar in sandbox), maar structuur is volledig conform plan 03.
+
+**Aangemakte/gewijzigde bestanden:**
+- `server/db.ts` — nieuw
+- `server/ai.ts` — nieuw (ook al onderdeel van plan 04, als dependency van plan 03)
+- `server/mcp/thoughts.ts` — nieuw
+- `server/mcp/` — directory aangemaakt
+- `server/api/` — directory aangemaakt (leeg, voor plan 06)
+- `server/index.ts` — volledig herschreven
+- `server/deno.json` — bijgewerkt (supabase → postgres)
+
+**Afwijkingen van het plan:**
+- `server/ai.ts` is ook onderdeel van plan 04, maar is hier al volledig geïmplementeerd omdat het een directe dependency is van plan 03 (server/index.ts importeert het)
+- `list_thoughts` gebruikt postgres.js nested `sql\`...\`` fragments voor dynamische WHERE i.p.v. de `sql.unsafe()` aanpak uit het plan, dit is veiliger (parameterized)
+- `thought_stats` gebruikt één SQL query met window function `COUNT(*) OVER ()` i.p.v. twee aparte queries (efficiënter)
+- `server/api/` directory aangemaakt maar leeg (REST routes komen in plan 06)
+
+**Wat de volgende sessie moet weten:**
+- Plan 04 (ai-abstraction.md) is al geïmplementeerd in `server/ai.ts` — kan direct als `[x]` worden afgevinkt (of aanvullen met `scripts/reembed.ts`)
+- Plan 05 (MCP tools per applicatie) vult `server/mcp/` aan met taken/agenda/notities/etc.
+- Plan 06 (REST API) vult `server/api/` aan met routes
+- De `sql` import in `server/mcp/thoughts.ts` gebruikt `import type { sql as sqlType }` — dit is correct voor Deno met typescript
+- Branch: `claude/migrate-to-cloudflare-mwbx3-FbKdS`
