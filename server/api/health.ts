@@ -1,6 +1,7 @@
 // server/api/health.ts — REST API routes voor gezondheid
 import { Hono } from "hono";
 import { sql } from "../db.ts";
+import { HealthCreateSchema, validationError } from "../validation.ts";
 
 export const healthRoutes = new Hono();
 
@@ -75,21 +76,23 @@ healthRoutes.get("/", async (c) => {
 // POST /api/health
 healthRoutes.post("/", async (c) => {
   const body = await c.req.json();
-  if (!body.type) return c.json({ error: "type is required", code: 400 }, 400);
+  const parsed = HealthCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
-  const entryDate = body.date ?? new Date().toISOString().slice(0, 10);
+  const entryDate = d.date ?? new Date().toISOString().slice(0, 10);
 
   const [entry] = await sql`
     INSERT INTO health_logs (type, value, value_text, unit, notes, date, time_of_day, tags)
     VALUES (
-      ${body.type},
-      ${body.value ?? null},
-      ${body.value_text ?? null},
-      ${body.unit ?? null},
-      ${body.notes ?? null},
+      ${d.type},
+      ${d.value ?? null},
+      ${d.value_text ?? null},
+      ${d.unit ?? null},
+      ${d.notes ?? null},
       ${entryDate},
-      ${body.time_of_day ?? null},
-      ${body.tags ? JSON.stringify(body.tags) : null}::jsonb
+      ${d.time_of_day ?? null},
+      ${d.tags ? JSON.stringify(d.tags) : null}::jsonb
     )
     RETURNING *
   `;

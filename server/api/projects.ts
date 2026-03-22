@@ -1,6 +1,15 @@
 // server/api/projects.ts — REST API routes voor projecten en kanban
 import { Hono } from "hono";
 import { sql } from "../db.ts";
+import {
+  ProjectCreateSchema,
+  ProjectUpdateSchema,
+  ColumnCreateSchema,
+  CardCreateSchema,
+  CardUpdateSchema,
+  CardMoveSchema,
+  validationError,
+} from "../validation.ts";
 
 export const projectRoutes = new Hono();
 export const cardRoutes = new Hono();
@@ -30,13 +39,15 @@ projectRoutes.get("/", async (c) => {
 // POST /api/projects
 projectRoutes.post("/", async (c) => {
   const body = await c.req.json();
-  if (!body.title) return c.json({ error: "title is required", code: 400 }, 400);
+  const parsed = ProjectCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
-  const colNames: string[] = (body.columns && body.columns.length > 0) ? body.columns : DEFAULT_COLUMNS;
+  const colNames: string[] = (d.columns && d.columns.length > 0) ? d.columns : DEFAULT_COLUMNS;
 
   const [project] = await sql`
     INSERT INTO projects (title, description, color)
-    VALUES (${body.title}, ${body.description ?? null}, ${body.color ?? "#6366f1"})
+    VALUES (${d.title}, ${d.description ?? null}, ${d.color ?? "#6366f1"})
     RETURNING *
   `;
 
@@ -69,13 +80,15 @@ projectRoutes.get("/:id", async (c) => {
 projectRoutes.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
+  const parsed = ProjectUpdateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [project] = await sql`
     UPDATE projects SET
-      title       = COALESCE(${body.title ?? null}, title),
-      description = COALESCE(${body.description ?? null}, description),
-      color       = COALESCE(${body.color ?? null}, color),
-      status      = COALESCE(${body.status ?? null}, status)
+      title       = COALESCE(${d.title ?? null}, title),
+      description = COALESCE(${d.description ?? null}, description),
+      color       = COALESCE(${d.color ?? null}, color)
     WHERE id = ${id}
     RETURNING *
   `;
@@ -124,16 +137,20 @@ projectRoutes.get("/:id/board", async (c) => {
 projectRoutes.post("/:id/columns", async (c) => {
   const projectId = c.req.param("id");
   const body = await c.req.json();
-  if (!body.title) return c.json({ error: "title is required", code: 400 }, 400);
+  const parsed = ColumnCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [posRow] = await sql`
     SELECT COALESCE(MAX(position), -1) + 1 AS next_pos
     FROM kanban_columns WHERE project_id = ${projectId}
   `;
 
+  const position = "position" in d ? d.position : posRow.next_pos;
+
   const [col] = await sql`
     INSERT INTO kanban_columns (project_id, title, position)
-    VALUES (${projectId}, ${body.title}, ${posRow.next_pos})
+    VALUES (${projectId}, ${d.name}, ${position})
     RETURNING *
   `;
   return c.json({ data: col }, 201);
@@ -143,29 +160,28 @@ projectRoutes.post("/:id/columns", async (c) => {
 projectRoutes.post("/:id/cards", async (c) => {
   const projectId = c.req.param("id");
   const body = await c.req.json();
-  if (!body.title) return c.json({ error: "title is required", code: 400 }, 400);
-  if (!body.column_id) return c.json({ error: "column_id is required", code: 400 }, 400);
+  const parsed = CardCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   // Verify column belongs to this project
   const [col] = await sql`
-    SELECT id FROM kanban_columns WHERE id = ${body.column_id} AND project_id = ${projectId}
+    SELECT id FROM kanban_columns WHERE id = ${d.column_id} AND project_id = ${projectId}
   `;
   if (!col) return c.json({ error: "Column not found in this project", code: 404 }, 404);
 
   const [posRow] = await sql`
     SELECT COALESCE(MAX(position), -1) + 1 AS next_pos
-    FROM kanban_cards WHERE column_id = ${body.column_id}
+    FROM kanban_cards WHERE column_id = ${d.column_id}
   `;
 
   const [card] = await sql`
-    INSERT INTO kanban_cards (column_id, title, description, due_date, tags, position)
+    INSERT INTO kanban_cards (column_id, title, description, position)
     VALUES (
-      ${body.column_id},
-      ${body.title},
-      ${body.description ?? null},
-      ${body.due_date ?? null},
-      ${body.tags ? JSON.stringify(body.tags) : null}::jsonb,
-      ${posRow.next_pos}
+      ${d.column_id},
+      ${d.title},
+      ${d.description ?? null},
+      ${d.position ?? posRow.next_pos}
     )
     RETURNING *
   `;
@@ -176,16 +192,14 @@ projectRoutes.post("/:id/cards", async (c) => {
 cardRoutes.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
+  const parsed = CardUpdateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [card] = await sql`
     UPDATE kanban_cards SET
-      title       = COALESCE(${body.title ?? null}, title),
-      description = COALESCE(${body.description ?? null}, description),
-      due_date    = CASE WHEN ${"due_date" in body} THEN ${body.due_date || null} ELSE due_date END,
-      done        = COALESCE(${body.done ?? null}, done),
-      tags        = CASE WHEN ${"tags" in body}
-                      THEN ${body.tags ? JSON.stringify(body.tags) : null}::jsonb
-                      ELSE tags END
+      title       = COALESCE(${d.title ?? null}, title),
+      description = CASE WHEN ${"description" in d} THEN ${d.description ?? null} ELSE description END
     WHERE id = ${id}
     RETURNING *
   `;
@@ -197,16 +211,18 @@ cardRoutes.patch("/:id", async (c) => {
 cardRoutes.patch("/:id/move", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
-  if (!body.column_id) return c.json({ error: "column_id is required", code: 400 }, 400);
+  const parsed = CardMoveSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [posRow] = await sql`
     SELECT COALESCE(MAX(position), -1) + 1 AS next_pos
-    FROM kanban_cards WHERE column_id = ${body.column_id}
+    FROM kanban_cards WHERE column_id = ${d.column_id}
   `;
-  const newPos = body.position ?? posRow.next_pos;
+  const newPos = d.position ?? posRow.next_pos;
 
   const [card] = await sql`
-    UPDATE kanban_cards SET column_id = ${body.column_id}, position = ${newPos}
+    UPDATE kanban_cards SET column_id = ${d.column_id}, position = ${newPos}
     WHERE id = ${id}
     RETURNING *
   `;

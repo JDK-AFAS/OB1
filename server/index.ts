@@ -45,8 +45,34 @@ registerHealthTools(mcpServer, sql);
 // Hono App
 const app = new Hono();
 
+// Error handler — onverwachte DB/runtime fouten
+app.onError((err, c) => {
+  console.error("[ob1 error]", err);
+  return c.json({ error: "Internal server error" }, 500);
+});
+
 // Health check (geen auth vereist)
 app.get("/health", (c) => c.json({ status: "ok", version: "2.0.0" }));
+
+// API info (geen auth vereist)
+app.get("/api/info", (c) =>
+  c.json({
+    version: "2.0.0",
+    apps: ["tasks", "events", "notes", "projects", "contacts", "finances", "health", "thoughts"],
+    routes: {
+      tasks:    ["GET /api/tasks", "POST /api/tasks", "GET /api/tasks/:id", "PATCH /api/tasks/:id", "DELETE /api/tasks/:id", "POST /api/tasks/:id/complete"],
+      events:   ["GET /api/events", "POST /api/events", "GET /api/events/:id", "PATCH /api/events/:id", "DELETE /api/events/:id"],
+      notes:    ["GET /api/notes", "POST /api/notes", "GET /api/notes/search", "GET /api/notes/:id", "PATCH /api/notes/:id", "DELETE /api/notes/:id"],
+      projects: ["GET /api/projects", "POST /api/projects", "GET /api/projects/:id", "PATCH /api/projects/:id", "DELETE /api/projects/:id", "GET /api/projects/:id/board", "POST /api/projects/:id/columns", "POST /api/projects/:id/cards"],
+      cards:    ["PATCH /api/cards/:id", "PATCH /api/cards/:id/move", "DELETE /api/cards/:id"],
+      contacts: ["GET /api/contacts", "POST /api/contacts", "GET /api/contacts/:id", "PATCH /api/contacts/:id", "DELETE /api/contacts/:id", "GET /api/contacts/:id/interactions", "POST /api/contacts/:id/interactions"],
+      finances: ["GET /api/finances", "POST /api/finances", "GET /api/finances/summary", "GET /api/finances/:id", "PATCH /api/finances/:id", "DELETE /api/finances/:id"],
+      health:   ["GET /api/health", "POST /api/health", "GET /api/health/summary", "GET /api/health/:id", "DELETE /api/health/:id"],
+      thoughts: ["GET /api/thoughts", "POST /api/thoughts", "GET /api/thoughts/search"],
+    },
+    mcp: "/mcp",
+  })
+);
 
 // Auth middleware voor alle andere routes
 app.use("*", async (c, next) => {

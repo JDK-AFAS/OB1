@@ -1,6 +1,7 @@
 // server/api/notes.ts — REST API routes voor notities
 import { Hono } from "hono";
 import { sql } from "../db.ts";
+import { NoteCreateSchema, NoteUpdateSchema, validationError } from "../validation.ts";
 
 export const noteRoutes = new Hono();
 
@@ -39,17 +40,18 @@ noteRoutes.get("/search", async (c) => {
 // POST /api/notes
 noteRoutes.post("/", async (c) => {
   const body = await c.req.json();
-  if (!body.title) return c.json({ error: "title is required", code: 400 }, 400);
-  if (!body.content) return c.json({ error: "content is required", code: 400 }, 400);
+  const parsed = NoteCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [note] = await sql`
     INSERT INTO notes (title, content, pinned, thought_id, tags)
     VALUES (
-      ${body.title},
-      ${body.content},
-      ${body.pinned ?? false},
-      ${body.thought_id ?? null},
-      ${body.tags ? JSON.stringify(body.tags) : null}::jsonb
+      ${d.title},
+      ${d.content ?? null},
+      ${d.pinned},
+      ${d.thought_id ?? null},
+      null
     )
     RETURNING *
   `;
@@ -68,16 +70,16 @@ noteRoutes.get("/:id", async (c) => {
 noteRoutes.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
+  const parsed = NoteUpdateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [note] = await sql`
     UPDATE notes SET
-      title     = COALESCE(${body.title ?? null}, title),
-      content   = COALESCE(${body.content ?? null}, content),
-      pinned    = COALESCE(${body.pinned ?? null}, pinned),
-      thought_id = CASE WHEN ${"thought_id" in body} THEN ${body.thought_id || null} ELSE thought_id END,
-      tags      = CASE WHEN ${"tags" in body}
-                    THEN ${body.tags ? JSON.stringify(body.tags) : null}::jsonb
-                    ELSE tags END
+      title     = COALESCE(${d.title ?? null}, title),
+      content   = COALESCE(${d.content ?? null}, content),
+      pinned    = COALESCE(${d.pinned ?? null}, pinned),
+      thought_id = CASE WHEN ${"thought_id" in d} THEN ${d.thought_id || null} ELSE thought_id END
     WHERE id = ${id}
     RETURNING *
   `;

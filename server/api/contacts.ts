@@ -1,6 +1,7 @@
 // server/api/contacts.ts — REST API routes voor contacten
 import { Hono } from "hono";
 import { sql } from "../db.ts";
+import { ContactCreateSchema, ContactUpdateSchema, InteractionCreateSchema, validationError } from "../validation.ts";
 
 export const contactRoutes = new Hono();
 
@@ -30,19 +31,19 @@ contactRoutes.get("/", async (c) => {
 // POST /api/contacts
 contactRoutes.post("/", async (c) => {
   const body = await c.req.json();
-  if (!body.name) return c.json({ error: "name is required", code: 400 }, 400);
+  const parsed = ContactCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [contact] = await sql`
-    INSERT INTO contacts (name, email, phone, company, role, notes, tags, birthday)
+    INSERT INTO contacts (name, email, phone, company, notes, tags)
     VALUES (
-      ${body.name},
-      ${body.email ?? null},
-      ${body.phone ?? null},
-      ${body.company ?? null},
-      ${body.role ?? null},
-      ${body.notes ?? null},
-      ${body.tags ? JSON.stringify(body.tags) : null}::jsonb,
-      ${body.birthday ?? null}
+      ${d.name},
+      ${d.email ?? null},
+      ${d.phone ?? null},
+      ${d.company ?? null},
+      ${d.notes ?? null},
+      ${d.tags ? JSON.stringify(d.tags) : null}::jsonb
     )
     RETURNING *
   `;
@@ -70,19 +71,20 @@ contactRoutes.get("/:id", async (c) => {
 contactRoutes.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
+  const parsed = ContactUpdateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [contact] = await sql`
     UPDATE contacts SET
-      name     = COALESCE(${body.name ?? null}, name),
-      email    = COALESCE(${body.email ?? null}, email),
-      phone    = COALESCE(${body.phone ?? null}, phone),
-      company  = COALESCE(${body.company ?? null}, company),
-      role     = COALESCE(${body.role ?? null}, role),
-      notes    = COALESCE(${body.notes ?? null}, notes),
-      birthday = CASE WHEN ${"birthday" in body} THEN ${body.birthday || null} ELSE birthday END,
-      tags     = CASE WHEN ${"tags" in body}
-                   THEN ${body.tags ? JSON.stringify(body.tags) : null}::jsonb
-                   ELSE tags END
+      name    = COALESCE(${d.name ?? null}, name),
+      email   = COALESCE(${d.email ?? null}, email),
+      phone   = COALESCE(${d.phone ?? null}, phone),
+      company = COALESCE(${d.company ?? null}, company),
+      notes   = COALESCE(${d.notes ?? null}, notes),
+      tags    = CASE WHEN ${"tags" in d}
+                  THEN ${d.tags ? JSON.stringify(d.tags) : null}::jsonb
+                  ELSE tags END
     WHERE id = ${id}
     RETURNING *
   `;
@@ -118,8 +120,9 @@ contactRoutes.get("/:id/interactions", async (c) => {
 contactRoutes.post("/:id/interactions", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
-  if (!body.type) return c.json({ error: "type is required", code: 400 }, 400);
-  if (!body.summary) return c.json({ error: "summary is required", code: 400 }, 400);
+  const parsed = InteractionCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [contact] = await sql`SELECT id FROM contacts WHERE id = ${id}`;
   if (!contact) return c.json({ error: "Contact not found", code: 404 }, 404);
@@ -128,9 +131,9 @@ contactRoutes.post("/:id/interactions", async (c) => {
     INSERT INTO contact_interactions (contact_id, type, summary, date)
     VALUES (
       ${id},
-      ${body.type},
-      ${body.summary},
-      ${body.date ?? new Date().toISOString().slice(0, 10)}
+      ${d.type},
+      ${d.summary},
+      ${d.date ?? new Date().toISOString().slice(0, 10)}
     )
     RETURNING *
   `;
