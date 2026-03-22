@@ -9,7 +9,7 @@
 - [x] 05 — MCP tools (alle tools per applicatie)
 - [x] 06 — REST API (endpoints per applicatie)
 - [x] 07 — Applicaties (taken, agenda, notities, projecten, contacten, financiën, gezondheid)
-- [ ] 08 — Externe toegang (Cloudflare Tunnel)
+- [x] 08 — Externe toegang (Cloudflare Tunnel)
 - [ ] 09 — Migratie (stap-voor-stap van huidige OB1)
 
 ---
@@ -284,3 +284,46 @@
   2. De `.mcp.json` placeholder-URL bij te werken (of documenteren dat dit handmatig moet na tunnel-aanmaak)
   3. Een `docs/08-cloudflare-setup.md` te maken als gebruikershandleiding
 - Branch: `claude/migrate-to-cloudflare-mwbx3-BFyZR`
+
+---
+
+### Na fase 08 — Externe toegang (Cloudflare Tunnel) (2026-03-22)
+
+**Wat is geïmplementeerd en getest:**
+- `docs/08-cloudflare-setup.md` aangemaakt: uitgebreide stap-voor-stap handleiding met:
+  - Architectuurdiagram (Claude Code → Cloudflare Edge → cloudflared → ob1-server → postgres)
+  - Cloudflare account + domein instellen
+  - Tunnel aanmaken in Zero Trust dashboard, token kopiëren
+  - Public Hostname configureren (`ob1.jouwnaam.com → http://server:3000`)
+  - Token in `.env` zetten + alle andere vereiste env vars
+  - `docker compose up -d` starten en logs controleren
+  - `curl` tests voor health, api/info, auth-rejectie, authenticated endpoints
+  - `.mcp.json` aanpassen en `OB1_ACCESS_KEY` in shell exporteren
+  - Lokale toegang (zelfde netwerk, direct IP)
+  - Sneltest via `trycloudflare.com` (geen account nodig)
+  - Vast homelab IP via DHCP-reservering
+  - Beveiligingstabel (TLS / x-brain-key / geen open poorten / Cloudflare Access optioneel)
+  - Troubleshooting-sectie (502/523, cloudflared verbindt niet, MCP niet zichtbaar)
+- `scripts/verify-tunnel.sh` aangemaakt: bash verificatiescript dat:
+  - `/health` en `/api/info` test (geen auth)
+  - 401-responses verifieert zonder key (`/api/thoughts`, `/mcp`)
+  - Met `OB1_ACCESS_KEY` ook beveiligde endpoints test (`/api/thoughts`, `/api/tasks`, `/api/notes`)
+  - Samenvatting toont: `X geslaagd, Y mislukt`
+
+**Verification:** Documentatie is volledig en consistent met bestaande infrastructuur (docker-compose.yml, .env.example, .mcp.json). Het verify-script is uitvoerbaar (`chmod +x`). Docker is niet gestart (geen daemon beschikbaar in sandbox), maar de infrastructuurconfiguratie bestond al volledig vanuit fase 01.
+
+**Aangemakte/gewijzigde bestanden:**
+- `docs/08-cloudflare-setup.md` — nieuw
+- `scripts/verify-tunnel.sh` — nieuw (uitvoerbaar)
+
+**Afwijkingen van het plan:**
+- De TODO-items in `plan/08-external-access.md` vereisen gebruikersacties (Cloudflare account aanmaken, token instellen, tunnel starten). Deze stappen zijn gedocumenteerd in de handleiding maar kunnen niet automatisch worden uitgevoerd.
+- `.mcp.json` behoudt de placeholder URL (`jouw-tunnel.trycloudflare.com`). De gebruiker past deze aan na het aanmaken van de tunnel. Dit is correct: de URL is per definitie uniek per installatie.
+- Toegevoegd: troubleshooting-sectie met 502/523 HTTP codes en MCP-zichtbaarheidsproblemen (niet in het plan, maar nuttig).
+- Toegevoegd: Cloudflare Access vermelding (Zero Trust extra beveiliging) als optionele stap.
+
+**Wat de volgende sessie moet weten:**
+- Plan 09 (Migratie) is het laatste plan-item. Dit beschrijft hoe bestaande OB1 data (gedachten, embeddings) gemigreerd wordt van de huidige Supabase-gebaseerde setup naar de nieuwe Deno/PostgreSQL stack.
+- De gebruiker moet zelf de Cloudflare tunnel aanmaken en het token in `.env` zetten voordat de externe toegang werkt.
+- `scripts/verify-tunnel.sh https://ob1.jouwnaam.com` kan worden gebruikt om de tunnel na setup te verifiëren.
+- Branch: `claude/migrate-to-cloudflare-mwbx3-cv9L4`
