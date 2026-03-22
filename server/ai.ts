@@ -65,7 +65,7 @@ class OpenRouterProvider implements AiProvider {
   }
 }
 
-class OllamaProvider implements AiProvider {
+export class OllamaProvider implements AiProvider {
   readonly embeddingDimension = 768; // nomic-embed-text
 
   private readonly baseUrl =
