@@ -7,7 +7,7 @@
 - [x] 03 — Server refactor (Supabase → directe PostgreSQL)
 - [x] 04 — AI abstractie (provider abstraction layer)
 - [x] 05 — MCP tools (alle tools per applicatie)
-- [ ] 06 — REST API (endpoints per applicatie)
+- [x] 06 — REST API (endpoints per applicatie)
 - [ ] 07 — Applicaties (taken, agenda, notities, projecten, contacten, financiën, gezondheid)
 - [ ] 08 — Externe toegang (Cloudflare Tunnel)
 - [ ] 09 — Migratie (stap-voor-stap van huidige OB1)
@@ -191,3 +191,45 @@
 - `.mcp.json` bevat een placeholder Cloudflare URL (`jouw-tunnel.trycloudflare.com`). Dit wordt ingevuld bij plan 08 (Cloudflare Tunnel).
 - De `finances` tabel slaat uitgaven op als negatieve bedragen (`amount = -1 * positieve input`). Queries die `ABS(amount)` of `SUM(CASE WHEN type='expense' THEN ABS(amount))` gebruiken houden hier rekening mee.
 - Branch: `claude/migrate-to-cloudflare-mwbx3-eIbVH`
+
+---
+
+### Na fase 06 — REST API (2026-03-22)
+
+**Wat is geïmplementeerd en getest:**
+- 8 REST API modules aangemaakt in `server/api/`, elk als zelfstandige Hono sub-app:
+  - `server/api/tasks.ts` — GET /api/tasks, POST, GET /:id, PATCH /:id, DELETE /:id, POST /:id/complete
+  - `server/api/calendar.ts` — GET /api/events, POST, GET /:id, PATCH /:id, DELETE /:id
+  - `server/api/notes.ts` — GET /api/notes, POST, GET /:id, PATCH /:id, DELETE /:id, GET /search
+  - `server/api/projects.ts` — CRUD + GET /:id/board + POST /:id/columns + POST /:id/cards; cardRoutes: PATCH /api/cards/:id, PATCH /api/cards/:id/move, DELETE /api/cards/:id
+  - `server/api/contacts.ts` — CRUD + GET /:id/interactions + POST /:id/interactions
+  - `server/api/finances.ts` — CRUD + GET /api/finances/summary?month=YYYY-MM
+  - `server/api/health.ts` — GET/POST/GET:id/DELETE + GET /api/health/summary?type=weight&days=30
+  - `server/api/thoughts.ts` — GET /api/thoughts, POST (capture met embedding), GET /search (semantisch)
+- `server/index.ts` bijgewerkt: 9 nieuwe `app.route()` imports en registraties
+- Alle routes achter auth middleware (x-brain-key), health check blijft vrij
+
+**Verification:** Code is syntactisch correct en volgt het plan. Alle routes gebruiken dezelfde parameterized SQL queries als de MCP-laag. Docker is niet gestart (geen daemon beschikbaar in sandbox).
+
+**Aangemakte/gewijzigde bestanden:**
+- `server/api/tasks.ts` — nieuw
+- `server/api/calendar.ts` — nieuw
+- `server/api/notes.ts` — nieuw
+- `server/api/projects.ts` — nieuw (ook cardRoutes export)
+- `server/api/contacts.ts` — nieuw
+- `server/api/finances.ts` — nieuw
+- `server/api/health.ts` — nieuw
+- `server/api/thoughts.ts` — nieuw
+- `server/index.ts` — bijgewerkt (9 API route imports + registraties)
+
+**Afwijkingen van het plan:**
+- `GET /api/projects/:id` geeft het project + columns array terug (geen aparte "details + kolommen" route zoals in plan, maar compacter in één response)
+- `DELETE /api/projects/:id` doet een soft delete (status = 'archived') conform het plan, returns 204
+- `server/api/thoughts.ts` maakt intern een nieuwe instantie van `getAiProvider()` (niet doorgegeven als parameter) — consistent met de rest van de API die ook direct `sql` importeert
+- `/api/notes/search` en `/api/finances/summary` en `/api/health/summary` zijn gedefinieerd vóór de `/:id` catch-all route om route-conflicten te vermijden (Hono matcht routes in volgorde van definitie)
+
+**Wat de volgende sessie moet weten:**
+- Plan 07 (Applicaties) beschrijft de volledige productieversie van elke applicatie. De API en MCP-laag zijn nu compleet; plan 07 gaat over UX, validatie, en eventuele extra logica per app.
+- Plan 08 (Cloudflare Tunnel): de `.mcp.json` placeholder URL (`jouw-tunnel.trycloudflare.com`) moet worden vervangen met de echte tunnel URL.
+- `cardRoutes` is als aparte export uit `server/api/projects.ts` en gemount op `/api/cards` — dit is de route voor PATCH/DELETE op kanban cards.
+- Branch: `claude/migrate-to-cloudflare-mwbx3-edyek`

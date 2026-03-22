@@ -14,6 +14,15 @@ import { registerContactTools } from "./mcp/contacts.ts";
 import { registerFinanceTools } from "./mcp/finances.ts";
 import { registerHealthTools } from "./mcp/health.ts";
 
+import { taskRoutes } from "./api/tasks.ts";
+import { calendarRoutes } from "./api/calendar.ts";
+import { noteRoutes } from "./api/notes.ts";
+import { projectRoutes, cardRoutes } from "./api/projects.ts";
+import { contactRoutes } from "./api/contacts.ts";
+import { financeRoutes } from "./api/finances.ts";
+import { healthRoutes } from "./api/health.ts";
+import { thoughtRoutes } from "./api/thoughts.ts";
+
 const MCP_ACCESS_KEY = Deno.env.get("MCP_ACCESS_KEY")!;
 const PORT = parseInt(Deno.env.get("PORT") || "3000");
 
@@ -56,5 +65,16 @@ app.all("/mcp/*", async (c) => {
   await mcpServer.connect(transport);
   return transport.handleRequest(c);
 });
+
+// REST API routes
+app.route("/api/tasks", taskRoutes);
+app.route("/api/events", calendarRoutes);
+app.route("/api/notes", noteRoutes);
+app.route("/api/projects", projectRoutes);
+app.route("/api/cards", cardRoutes);
+app.route("/api/contacts", contactRoutes);
+app.route("/api/finances", financeRoutes);
+app.route("/api/health", healthRoutes);
+app.route("/api/thoughts", thoughtRoutes);
 
 Deno.serve({ port: PORT }, app.fetch);
