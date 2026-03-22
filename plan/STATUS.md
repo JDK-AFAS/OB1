@@ -5,7 +5,7 @@
 - [x] 01 — Infrastructuur (Docker Compose, Dockerfile, postgres/init)
 - [x] 02 — Database schema (tabellen, indexen, SQL migrations)
 - [x] 03 — Server refactor (Supabase → directe PostgreSQL)
-- [ ] 04 — AI abstractie (provider abstraction layer)
+- [x] 04 — AI abstractie (provider abstraction layer)
 - [ ] 05 — MCP tools (alle tools per applicatie)
 - [ ] 06 — REST API (endpoints per applicatie)
 - [ ] 07 — Applicaties (taken, agenda, notities, projecten, contacten, financiën, gezondheid)
@@ -121,3 +121,32 @@
 - Plan 06 (REST API) vult `server/api/` aan met routes
 - De `sql` import in `server/mcp/thoughts.ts` gebruikt `import type { sql as sqlType }` — dit is correct voor Deno met typescript
 - Branch: `claude/migrate-to-cloudflare-mwbx3-FbKdS`
+
+---
+
+### Na fase 04 — AI abstractielaag (2026-03-22)
+
+**Wat is geïmplementeerd en getest:**
+- `server/ai.ts`: `OllamaProvider` klasse geëxporteerd (was private in fase 03, nodig voor reembed script)
+- `scripts/reembed.ts`: volledig migratiescript van OpenRouter (1536-dim) naar Ollama (768-dim):
+  - Stap 1: `ALTER COLUMN embedding TYPE vector(768)`
+  - Stap 2: alle thoughts opnieuw embedden via Ollama (100ms pauze per thought)
+  - Stap 3: HNSW-index herbouwen
+  - Stap 4: `match_thoughts` PostgreSQL-functie bijwerken naar `vector(768)`
+- `docs/05-ollama-migration.md`: stap-voor-stap migratiegids met hardware-vereisten, commando's, en terugdraai-instructies
+
+**Verification:** Code is syntactisch correct. `server/ai.ts` (beide providers) en `.env.example` waren al volledig geïmplementeerd vanuit fase 03. Alleen de export en het script waren nieuw.
+
+**Aangemakte/gewijzigde bestanden:**
+- `server/ai.ts` — `OllamaProvider` geëxporteerd
+- `scripts/reembed.ts` — nieuw
+- `docs/05-ollama-migration.md` — nieuw
+
+**Afwijkingen van het plan:**
+- Het plan noemde alleen het re-embed script als TODO. De `server/ai.ts` was al volledig (uit fase 03). Toegevoegd: stap 4 in het script (match_thoughts updaten), wat het plan als aparte "migratiestap 4" beschreef maar niet in het script had.
+- `OllamaProvider` was niet geëxporteerd in fase 03 — minimale aanpassing om het script te laten werken.
+
+**Wat de volgende sessie moet weten:**
+- Plan 05 (MCP tools): `server/mcp/` aanvullen met modules voor taken, agenda, notities, projecten, contacten, financiën, gezondheid. Elke module exporteert een array van MCP tool-definities.
+- Plan 06 (REST API): `server/api/` aanvullen met Hono of standaard Deno routes
+- Branch: `claude/migrate-to-cloudflare-mwbx3-tpP22`
