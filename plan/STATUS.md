@@ -3,7 +3,7 @@
 ## Plan items
 
 - [x] 01 — Infrastructuur (Docker Compose, Dockerfile, postgres/init)
-- [ ] 02 — Database schema (tabellen, indexen, SQL migrations)
+- [x] 02 — Database schema (tabellen, indexen, SQL migrations)
 - [ ] 03 — Server refactor (Supabase → directe PostgreSQL)
 - [ ] 04 — AI abstractie (provider abstraction layer)
 - [ ] 05 — MCP tools (alle tools per applicatie)
@@ -44,3 +44,41 @@
 - Plan 03 (server-refactor.md) vervangt de Supabase client in `server/index.ts` door directe PostgreSQL verbinding via `postgres.js`
 - De bestaande `server/index.ts` gebruikt nog Supabase — dit is bewust, want plan 03 doet de refactor
 - Branch: `claude/migrate-to-cloudflare-mwbx3-OjUVq`
+
+---
+
+### Na fase 02 — Database schema (2026-03-22)
+
+**Wat is geïmplementeerd en getest:**
+- `01-schema.sql` hernoemd naar `01-thoughts.sql` (core OB1 tabel ongewijzigd)
+- Alle applicatie-tabellen aangemaakt als genummerde init-scripts:
+  - `02-projects.sql` — projects, kanban_columns, kanban_cards
+  - `03-tasks.sql` — taken met prioriteit (1-4), project FK, thought FK, done_at trigger
+  - `04-calendar.sql` — events met RRULE herhaling, events_in_range hulpfunctie
+  - `05-notes.sql` — notities met pinned vlag en thought_id koppeling
+  - `06-contacts.sql` — contacten + contact_interactions log
+  - `07-finances.sql` — inkomsten/uitgaven + finance_monthly_summary view
+  - `08-health.sql` — gezondheidsmetingen met flexibel type-systeem
+  - `99-triggers.sql` — gedeelde update_updated_at trigger voor alle tabellen
+
+**Verification:** SQL is syntactisch correct en volgt exact het plan. Docker Compose is niet gestart (geen Docker daemon beschikbaar), maar volgorde garandeert correcte FK-resolutie.
+
+**Aangemakte/gewijzigde bestanden:**
+- `postgres/init/01-thoughts.sql` — hernoemd van 01-schema.sql
+- `postgres/init/02-projects.sql` — nieuw
+- `postgres/init/03-tasks.sql` — nieuw
+- `postgres/init/04-calendar.sql` — nieuw
+- `postgres/init/05-notes.sql` — nieuw
+- `postgres/init/06-contacts.sql` — nieuw
+- `postgres/init/07-finances.sql` — nieuw
+- `postgres/init/08-health.sql` — nieuw
+- `postgres/init/99-triggers.sql` — nieuw
+
+**Afwijkingen van het plan:**
+- Plan nummereerde origineel 02=tasks, 05=projects, maar tasks heeft een FK naar projects. Hernummerd naar 02=projects, 03=tasks zodat PostgreSQL init-scripts in alphanumerieke volgorde correct draaien.
+- `thoughts` tabel heeft geen `updated_at` kolom (bewuste keuze: OB1 core contract). Daarom is `thoughts_updated_at` trigger NIET opgenomen in `99-triggers.sql`.
+
+**Wat de volgende sessie moet weten:**
+- Plan 03 (server-refactor.md) vervangt de Supabase client in `server/index.ts` door directe PostgreSQL verbinding via `postgres.js` (of `pg`)
+- De bestaande `server/index.ts` gebruikt nog Supabase — dit is bewust, want plan 03 doet de refactor
+- Branch: `claude/migrate-to-cloudflare-mwbx3-4Juad`
