@@ -1,0 +1,80 @@
+version: "3.9"
+
+services:
+
+  # ─── Database ───────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: ob1-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ob1
+      POSTGRES_USER: ob1
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"    # alleen lokaal bereikbaar, nooit publiek
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ob1 -d ob1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── MCP + REST API Server ───────────────────────────────
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: ob1-server
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://ob1:${POSTGRES_PASSWORD}@postgres:5432/ob1
+      AI_PROVIDER: ${AI_PROVIDER:-openrouter}           # openrouter | ollama
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-llama3.1:8b}
+      MCP_ACCESS_KEY: ${MCP_ACCESS_KEY}
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"    # alleen lokaal, Cloudflare Tunnel tunnel hiernaar
+
+  # ─── Ollama (selfhosted LLM) — optioneel, standaard uit ──
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ob1-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    # GPU support (optioneel, uncomment indien beschikbaar):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    profiles:
+      - ollama    # alleen starten met: docker compose --profile ollama up
+
+  # ─── Cloudflare Tunnel ───────────────────────────────────
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ob1-tunnel
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - server
+
+volumes:
+  postgres_data:
+  ollama_data:
