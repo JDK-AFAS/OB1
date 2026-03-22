@@ -1,6 +1,7 @@
 // server/api/tasks.ts — REST API routes voor taken
 import { Hono } from "hono";
 import { sql } from "../db.ts";
+import { TaskCreateSchema, TaskUpdateSchema, validationError } from "../validation.ts";
 
 export const taskRoutes = new Hono();
 
@@ -28,17 +29,19 @@ taskRoutes.get("/", async (c) => {
 // POST /api/tasks
 taskRoutes.post("/", async (c) => {
   const body = await c.req.json();
-  if (!body.title) return c.json({ error: "title is required", code: 400 }, 400);
+  const parsed = TaskCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [task] = await sql`
     INSERT INTO tasks (title, description, due_date, priority, project_id, tags)
     VALUES (
-      ${body.title},
-      ${body.description ?? null},
-      ${body.due_date ?? null},
-      ${body.priority ?? 3},
-      ${body.project_id ?? null},
-      ${body.tags ? JSON.stringify(body.tags) : null}::jsonb
+      ${d.title},
+      ${d.description ?? null},
+      ${d.due_date ?? null},
+      ${d.priority},
+      ${d.project_id ?? null},
+      ${d.tags ? JSON.stringify(d.tags) : null}::jsonb
     )
     RETURNING *
   `;
@@ -57,16 +60,19 @@ taskRoutes.get("/:id", async (c) => {
 taskRoutes.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
+  const parsed = TaskUpdateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [task] = await sql`
     UPDATE tasks SET
-      title       = COALESCE(${body.title ?? null}, title),
-      description = COALESCE(${body.description ?? null}, description),
-      due_date    = CASE WHEN ${"due_date" in body} THEN ${body.due_date || null} ELSE due_date END,
-      priority    = COALESCE(${body.priority ?? null}, priority),
-      project_id  = CASE WHEN ${"project_id" in body} THEN ${body.project_id || null} ELSE project_id END,
-      tags        = CASE WHEN ${"tags" in body}
-                      THEN ${body.tags ? JSON.stringify(body.tags) : null}::jsonb
+      title       = COALESCE(${d.title ?? null}, title),
+      description = COALESCE(${d.description ?? null}, description),
+      due_date    = CASE WHEN ${"due_date" in d} THEN ${d.due_date || null} ELSE due_date END,
+      priority    = COALESCE(${d.priority ?? null}, priority),
+      project_id  = CASE WHEN ${"project_id" in d} THEN ${d.project_id || null} ELSE project_id END,
+      tags        = CASE WHEN ${"tags" in d}
+                      THEN ${d.tags ? JSON.stringify(d.tags) : null}::jsonb
                       ELSE tags END
     WHERE id = ${id}
     RETURNING *

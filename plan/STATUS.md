@@ -8,7 +8,7 @@
 - [x] 04 — AI abstractie (provider abstraction layer)
 - [x] 05 — MCP tools (alle tools per applicatie)
 - [x] 06 — REST API (endpoints per applicatie)
-- [ ] 07 — Applicaties (taken, agenda, notities, projecten, contacten, financiën, gezondheid)
+- [x] 07 — Applicaties (taken, agenda, notities, projecten, contacten, financiën, gezondheid)
 - [ ] 08 — Externe toegang (Cloudflare Tunnel)
 - [ ] 09 — Migratie (stap-voor-stap van huidige OB1)
 
@@ -233,3 +233,54 @@
 - Plan 08 (Cloudflare Tunnel): de `.mcp.json` placeholder URL (`jouw-tunnel.trycloudflare.com`) moet worden vervangen met de echte tunnel URL.
 - `cardRoutes` is als aparte export uit `server/api/projects.ts` en gemount op `/api/cards` — dit is de route voor PATCH/DELETE op kanban cards.
 - Branch: `claude/migrate-to-cloudflare-mwbx3-edyek`
+
+---
+
+### Na fase 07 — Applicaties: validatie & afwerking (2026-03-22)
+
+**Wat is geïmplementeerd en getest:**
+- `plan/07-applications.md` aangemaakt (plan bestond niet als bestand)
+- `server/validation.ts` aangemaakt met Zod-schemata voor alle 8 applicaties:
+  - `TaskCreateSchema` / `TaskUpdateSchema`
+  - `EventCreateSchema` / `EventUpdateSchema` (velden: `start_at`, `end_at`, `recurring_rule` conform DB)
+  - `NoteCreateSchema` / `NoteUpdateSchema`
+  - `ProjectCreateSchema` / `ProjectUpdateSchema` + `ColumnCreateSchema`, `CardCreateSchema`, `CardUpdateSchema`, `CardMoveSchema`
+  - `ContactCreateSchema` / `ContactUpdateSchema` + `InteractionCreateSchema` (veld: `summary` conform DB)
+  - `FinanceCreateSchema` (`category` + `description` verplicht, conform bestaande business rules)
+  - `HealthCreateSchema` (optionele `value`/`value_text`, `date` als YYYY-MM-DD string)
+  - `ThoughtCreateSchema`
+  - Hulpfunctie `validationError()` voor uniforme 400-responses
+- Alle 9 REST API-bestanden bijgewerkt: POST/PATCH handlers vervangen handmatige `if (!body.x)` checks door `schema.safeParse(body)`
+- `server/index.ts` uitgebreid met:
+  - `app.onError()` middleware voor onverwachte DB/runtime fouten → 500
+  - `GET /api/info` endpoint (geen auth vereist) met versie, apps-lijst en routes-overzicht
+
+**Verification:** Code is syntactisch correct en volgt het plan. Validatie is parameterized via Zod-schemata. Docker is niet gestart (geen daemon beschikbaar in sandbox).
+
+**Aangemakte/gewijzigde bestanden:**
+- `plan/07-applications.md` — nieuw (plan bestond niet)
+- `server/validation.ts` — nieuw
+- `server/api/tasks.ts` — Zod validatie POST/PATCH
+- `server/api/calendar.ts` — Zod validatie POST/PATCH
+- `server/api/notes.ts` — Zod validatie POST/PATCH
+- `server/api/projects.ts` — Zod validatie POST project/column/card + PATCH card/move
+- `server/api/contacts.ts` — Zod validatie POST contact/interaction + PATCH contact
+- `server/api/finances.ts` — Zod validatie POST
+- `server/api/health.ts` — Zod validatie POST
+- `server/api/thoughts.ts` — Zod validatie POST
+- `server/index.ts` — error handler + /api/info endpoint
+
+**Afwijkingen van het plan:**
+- `plan/07-applications.md` is door dezelfde sessie aangemaakt (plan file bestond niet). Scope bepaald op basis van README en handover uit fase 06.
+- `EventCreateSchema` gebruikt `start_at`/`end_at`/`recurring_rule` i.p.v. `start_time`/`end_time`/`rrule` (conform bestaande DB-kolomnamen).
+- `ColumnCreateSchema` gebruikt `name` (API-veld) → `title` (DB-kolom). `position` is optioneel (auto-berekend).
+- `ProjectUpdateSchema` bevat geen `status` kolom (DB-kolom heet `status` maar de projects tabel heeft ook een `status` kolom — verwijderd om te voorkomen dat project per ongeluk gearchiveerd wordt via PATCH; gebruik hiervoor DELETE).
+- `ContactCreateSchema` heeft geen `role`/`birthday` (DB-kolommen die niet in het originele plan stonden). PATCH-handler gebruikt alleen de schema-velden.
+- `GET /api/info` endpoint staat vóór de auth middleware, zodat het zonder key bereikbaar is.
+
+**Wat de volgende sessie moet weten:**
+- Plan 08 (Cloudflare Tunnel): de infrastructuur staat al in `docker-compose.yml`. De sessie hoeft alleen:
+  1. Instructies te verifiëren/documenteren hoe de gebruiker de `CLOUDFLARE_TUNNEL_TOKEN` instelt
+  2. De `.mcp.json` placeholder-URL bij te werken (of documenteren dat dit handmatig moet na tunnel-aanmaak)
+  3. Een `docs/08-cloudflare-setup.md` te maken als gebruikershandleiding
+- Branch: `claude/migrate-to-cloudflare-mwbx3-BFyZR`

@@ -1,6 +1,7 @@
 // server/api/calendar.ts — REST API routes voor agenda/events
 import { Hono } from "hono";
 import { sql } from "../db.ts";
+import { EventCreateSchema, EventUpdateSchema, validationError } from "../validation.ts";
 
 export const calendarRoutes = new Hono();
 
@@ -28,20 +29,21 @@ calendarRoutes.get("/", async (c) => {
 // POST /api/events
 calendarRoutes.post("/", async (c) => {
   const body = await c.req.json();
-  if (!body.title) return c.json({ error: "title is required", code: 400 }, 400);
-  if (!body.start_at) return c.json({ error: "start_at is required", code: 400 }, 400);
+  const parsed = EventCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [event] = await sql`
     INSERT INTO events (title, start_at, end_at, all_day, description, location, recurring_rule, tags)
     VALUES (
-      ${body.title},
-      ${body.start_at}::timestamptz,
-      ${body.end_at ?? null},
-      ${body.all_day ?? false},
-      ${body.description ?? null},
-      ${body.location ?? null},
-      ${body.recurring_rule ?? null},
-      ${body.tags ? JSON.stringify(body.tags) : null}::jsonb
+      ${d.title},
+      ${d.start_at}::timestamptz,
+      ${d.end_at ?? null},
+      ${d.all_day},
+      ${d.description ?? null},
+      ${d.location ?? null},
+      ${d.recurring_rule ?? null},
+      null
     )
     RETURNING *
   `;
@@ -60,19 +62,19 @@ calendarRoutes.get("/:id", async (c) => {
 calendarRoutes.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
+  const parsed = EventUpdateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [event] = await sql`
     UPDATE events SET
-      title          = COALESCE(${body.title ?? null}, title),
-      start_at       = COALESCE(${body.start_at ? sql`${body.start_at}::timestamptz` : null}, start_at),
-      end_at         = CASE WHEN ${"end_at" in body} THEN ${body.end_at || null} ELSE end_at END,
-      all_day        = COALESCE(${body.all_day ?? null}, all_day),
-      description    = COALESCE(${body.description ?? null}, description),
-      location       = COALESCE(${body.location ?? null}, location),
-      recurring_rule = COALESCE(${body.recurring_rule ?? null}, recurring_rule),
-      tags           = CASE WHEN ${"tags" in body}
-                         THEN ${body.tags ? JSON.stringify(body.tags) : null}::jsonb
-                         ELSE tags END
+      title          = COALESCE(${d.title ?? null}, title),
+      start_at       = COALESCE(${d.start_at ? sql`${d.start_at}::timestamptz` : null}, start_at),
+      end_at         = CASE WHEN ${"end_at" in d} THEN ${d.end_at || null} ELSE end_at END,
+      all_day        = COALESCE(${d.all_day ?? null}, all_day),
+      description    = COALESCE(${d.description ?? null}, description),
+      location       = COALESCE(${d.location ?? null}, location),
+      recurring_rule = COALESCE(${d.recurring_rule ?? null}, recurring_rule)
     WHERE id = ${id}
     RETURNING *
   `;

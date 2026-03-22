@@ -2,6 +2,7 @@
 import { Hono } from "hono";
 import { sql } from "../db.ts";
 import { getAiProvider } from "../ai.ts";
+import { ThoughtCreateSchema, validationError } from "../validation.ts";
 
 export const thoughtRoutes = new Hono();
 
@@ -52,11 +53,13 @@ thoughtRoutes.get("/", async (c) => {
 // POST /api/thoughts — capture
 thoughtRoutes.post("/", async (c) => {
   const body = await c.req.json();
-  if (!body.content) return c.json({ error: "content is required", code: 400 }, 400);
+  const parsed = ThoughtCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
   const [embedding, metadata] = await Promise.all([
-    ai.getEmbedding(body.content),
-    ai.extractMetadata(body.content),
+    ai.getEmbedding(d.content),
+    ai.extractMetadata(d.content),
   ]);
 
   const fullMetadata = { ...metadata, source: "api" };
@@ -64,11 +67,11 @@ thoughtRoutes.post("/", async (c) => {
   await sql`
     INSERT INTO thoughts (content, embedding, metadata)
     VALUES (
-      ${body.content},
+      ${d.content},
       ${JSON.stringify(embedding)}::vector,
       ${JSON.stringify(fullMetadata)}::jsonb
     )
   `;
 
-  return c.json({ data: { content: body.content, metadata: fullMetadata } }, 201);
+  return c.json({ data: { content: d.content, metadata: fullMetadata } }, 201);
 });

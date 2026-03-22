@@ -1,6 +1,7 @@
 // server/api/finances.ts — REST API routes voor financiën
 import { Hono } from "hono";
 import { sql } from "../db.ts";
+import { FinanceCreateSchema, validationError } from "../validation.ts";
 
 export const financeRoutes = new Hono();
 
@@ -72,25 +73,24 @@ financeRoutes.get("/", async (c) => {
 // POST /api/finances
 financeRoutes.post("/", async (c) => {
   const body = await c.req.json();
-  if (!body.type) return c.json({ error: "type is required (income or expense)", code: 400 }, 400);
-  if (body.amount === undefined) return c.json({ error: "amount is required", code: 400 }, 400);
-  if (!body.description) return c.json({ error: "description is required", code: 400 }, 400);
-  if (!body.category) return c.json({ error: "category is required", code: 400 }, 400);
+  const parsed = FinanceCreateSchema.safeParse(body);
+  if (!parsed.success) return c.json(validationError(parsed.error.issues), 400);
+  const d = parsed.data;
 
-  const sign = body.type === "expense" ? -1 : 1;
-  const entryDate = body.date ?? new Date().toISOString().slice(0, 10);
+  const sign = d.type === "expense" ? -1 : 1;
+  const entryDate = d.date ?? new Date().toISOString().slice(0, 10);
 
   const [entry] = await sql`
     INSERT INTO finances (type, amount, description, category, date, currency, tags, recurring)
     VALUES (
-      ${body.type},
-      ${sign * Math.abs(body.amount)},
-      ${body.description},
-      ${body.category},
+      ${d.type},
+      ${sign * Math.abs(d.amount)},
+      ${d.description},
+      ${d.category},
       ${entryDate},
-      ${body.currency ?? "EUR"},
-      ${body.tags ? JSON.stringify(body.tags) : null}::jsonb,
-      ${body.recurring ?? false}
+      ${d.currency ?? "EUR"},
+      ${d.tags ? JSON.stringify(d.tags) : null}::jsonb,
+      ${d.recurring ?? false}
     )
     RETURNING *
   `;
