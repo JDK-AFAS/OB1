@@ -204,15 +204,24 @@ docker exec ob1-postgres pg_dump -U ob1 ob1 > backup-pre-migration.sql
 
 | Fase | Getest | Notities |
 |---|---|---|
-| 1 — Docker + Database | ☐ | |
-| 2 — Server refactor (bestaande tools) | ☐ | |
-| 3a — Taken | ☐ | |
-| 3b — Agenda | ☐ | |
-| 3c — Notities | ☐ | |
-| 3d — Projecten | ☐ | |
-| 3e — Contacten | ☐ | |
-| 3f — Financiën | ☐ | |
-| 3g — Gezondheid | ☐ | |
-| 4 — REST API | ☐ | |
-| 5 — Externe toegang | ☐ | |
-| 6 — Ollama | ☐ | |
+| 1 — Docker + Database | ✅ geïmplementeerd | docker-compose.yml + postgres/init/ scripts aangemaakt (plan 01, 02) |
+| 2 — Server refactor (bestaande tools) | ✅ geïmplementeerd | server/db.ts, server/mcp/thoughts.ts, server/index.ts herschreven (plan 03) |
+| 3a — Taken | ✅ geïmplementeerd | server/mcp/tasks.ts — 5 tools (plan 05) |
+| 3b — Agenda | ✅ geïmplementeerd | server/mcp/calendar.ts — 4 tools (plan 05) |
+| 3c — Notities | ✅ geïmplementeerd | server/mcp/notes.ts — 5 tools (plan 05) |
+| 3d — Projecten | ✅ geïmplementeerd | server/mcp/projects.ts — 5 tools (plan 05) |
+| 3e — Contacten | ✅ geïmplementeerd | server/mcp/contacts.ts — 4 tools (plan 05) |
+| 3f — Financiën | ✅ geïmplementeerd | server/mcp/finances.ts — 3 tools (plan 05) |
+| 3g — Gezondheid | ✅ geïmplementeerd | server/mcp/health.ts — 3 tools (plan 05) |
+| 4 — REST API | ✅ geïmplementeerd | server/api/* — alle routes + Zod validatie (plan 06, 07) |
+| 5 — Externe toegang | ✅ gedocumenteerd | docs/08-cloudflare-setup.md + scripts/verify-tunnel.sh (plan 08) |
+| 6 — Ollama | ✅ gedocumenteerd | docs/05-ollama-migration.md + scripts/reembed.ts (plan 04) |
+
+## Data migratie (Supabase → lokaal)
+
+| Stap | Status | Notities |
+|---|---|---|
+| Export script | ✅ aangemaakt | `scripts/export-from-supabase.ts` |
+| Import script | ✅ aangemaakt | onderdeel van hetzelfde script (`--import-only`) |
+| Gebruikershandleiding | ✅ aangemaakt | `docs/09-migration-guide.md` |
+| Uitgevoerd op productiedata | ☐ | Gebruiker voert zelf uit met eigen Supabase-URL |
