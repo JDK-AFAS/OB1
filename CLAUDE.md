@@ -39,6 +39,23 @@ Every contribution lives in its own subfolder under the right category and must 
 - Every PR must pass the automated review checks in `.github/workflows/ob1-review.yml` before human review
 - See `CONTRIBUTING.md` for the full review process, metadata.json template, and README requirements
 
+## Second Brain Workflow
+
+This repo uses a three-folder second brain architecture. Use it as follows:
+
+| Folder | Who owns it | What goes in it |
+|--------|-------------|-----------------|
+| `raw/` | Human | Unstructured input — notes, articles, tasks, SOPs, transcriptions. Just dump, never organise. |
+| `wiki/` | Claude | Distilled, standalone topic docs. One topic per file. Reusable and always up to date. |
+| `outputs/` | Claude | Every substantive answer, brief, plan, or draft generated during a session. Named `YYYY-MM-DD-short-description.md`. |
+
+**Claude's job when a session starts:**
+1. Scan `raw/` for anything new or unprocessed.
+2. Distil new material into topic pages in `wiki/` (create or update as needed).
+3. Save any substantive output from the session to `outputs/`.
+
+Never ask the human to organise `raw/`. Never delete from `raw/` without being told to.
+
 ## Key Files
 
 - `CONTRIBUTING.md` — Source of truth for contribution rules, metadata format, and the review process
